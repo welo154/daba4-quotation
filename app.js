@@ -390,6 +390,10 @@ function boot(){
     a.download='Quotation-'+$('client').value.replace(/[^a-zA-Z0-9_-]/g,'-')+'.pdf';
     a.click();
   };
+  $('toInvoice').onclick=()=>{
+    const client=$('client').value.trim();
+    location.href='/invoices/'+(client?'?client='+encodeURIComponent(client):'');
+  };
   function clearLogo(){logo=null;$('logo').value='';$('logoPreview').hidden=true;$('logoLabel').hidden=false;$('removeLogo').hidden=true;}
   $('removeLogo').onclick=()=>{clearLogo();refresh();};
   $('logo').onchange=async()=>{

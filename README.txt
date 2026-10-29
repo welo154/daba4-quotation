@@ -21,7 +21,7 @@ or run `npx vercel` from this folder.
 Local preview
 Run `python3 -m http.server 8000`, then open http://localhost:8000.
 
-Usage
-Quotations: edit, Save quotation, open Saved, Download PDF.
-Invoices: edit, Save invoice, Invoice history, ↓ PDF.
+Usage (CRUD for both)
+Quotations: create with Save quotation, open/edit from Saved, Update quotation, Duplicate, Delete, Download PDF.
+Invoices: create with Save invoice, open/edit from history, Update invoice, Duplicate, Delete, ↓ PDF.
 Create invoice on the quotation page opens a new invoice for the same client.

@@ -85,6 +85,13 @@
         saveLocal(store);
         return [store.invoices[idx]];
       }
+      if(method==='DELETE'&&idEq&&idEq.startsWith('eq.')){
+        const id=idEq.slice(3);
+        store.invoices=store.invoices.filter(r=>r.id!==id);
+        store.invoiceHistory=store.invoiceHistory.filter(h=>h.invoice_id!==id);
+        saveLocal(store);
+        return null;
+      }
     }
 
     if(table==='invoice_history'){
@@ -116,6 +123,13 @@
         store.quotationHistory.push({id:uid(),quotation_id:id,recorded_at:now,data:{data:body.data,number:store.quotations[idx].number,client:body.client}});
         saveLocal(store);
         return [store.quotations[idx]];
+      }
+      if(method==='DELETE'&&idEq&&idEq.startsWith('eq.')){
+        const id=idEq.slice(3);
+        store.quotations=store.quotations.filter(r=>r.id!==id);
+        store.quotationHistory=store.quotationHistory.filter(h=>h.quotation_id!==id);
+        saveLocal(store);
+        return null;
       }
     }
 

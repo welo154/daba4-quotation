@@ -408,6 +408,7 @@ function boot(){
     const data=sync();
     return {client:data.client,data:{...data,logo:logoDataUrl||''}};
   }
+  function markQuoteEditing(){$('saveQuote').textContent=currentQuote?'Update quotation':'Save quotation'}
   async function saveQuote(){
     $('saveQuote').disabled=true;
     try{
@@ -416,6 +417,7 @@ function boot(){
       const r=await WahajDB.api(path,{method:currentQuote?'PATCH':'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(row)});
       if(!r?.[0])throw Error('Quotation was not saved.');
       currentQuote=r[0];
+      markQuoteEditing();
       clearTimeout(timer);
       paint('Saved quotation '+String(currentQuote.number).padStart(6,'0')+'. Open it anytime from Saved.');
     }catch(e){paint(e.message,true);}
@@ -423,7 +425,7 @@ function boot(){
   }
   function paintQuoteList(){
     const q=($('quoteSearch').value||'').toLowerCase();
-    $('quoteRecords').innerHTML=quoteRecords.filter(r=>(r.client+' '+String(r.number).padStart(6,'0')).toLowerCase().includes(q)).map(r=>`<div class="record"><div><b>${String(r.number).padStart(6,'0')} · ${esc(r.client)}</b><p>${esc(new Date(r.updated_at||r.created_at).toLocaleString())}</p></div><div class="actions"><button type="button" data-open="${esc(r.id)}">Open</button><button type="button" data-revs="${esc(r.id)}">Revisions</button></div></div>`).join('')||'<p>No quotations found.</p>';
+    $('quoteRecords').innerHTML=quoteRecords.filter(r=>(r.client+' '+String(r.number).padStart(6,'0')).toLowerCase().includes(q)).map(r=>`<div class="record"><div><b>${String(r.number).padStart(6,'0')} · ${esc(r.client)}</b><p>${esc(new Date(r.updated_at||r.created_at).toLocaleString())}</p></div><div class="actions"><button type="button" data-open="${esc(r.id)}">Open</button><button type="button" data-dup="${esc(r.id)}">Duplicate</button><button type="button" data-revs="${esc(r.id)}">Revisions</button><button type="button" data-del="${esc(r.id)}">Delete</button></div></div>`).join('')||'<p>No quotations found.</p>';
   }
   async function openSavedQuotes(){
     $('quoteRevisions').hidden=true;$('quoteRevisions').innerHTML='';
@@ -442,9 +444,37 @@ function boot(){
     fillClient();
     renderSections();
     await applyLogoDataUrl(row.data.logo||'');
+    markQuoteEditing();
     $('historyDlg').close();
     await refresh();
-    paint('Editing quotation '+String(row.number).padStart(6,'0')+'. Save to record a new revision.');
+    paint('Editing quotation '+String(row.number).padStart(6,'0')+'. Update quotation to save changes.');
+  }
+  async function duplicateQuote(id){
+    const row=quoteRecords.find(r=>r.id===id);
+    if(!row)return;
+    currentQuote=null;
+    quote=structuredClone(row.data);
+    delete quote.logo;
+    fillClient();
+    renderSections();
+    await applyLogoDataUrl(row.data.logo||'');
+    markQuoteEditing();
+    $('historyDlg').close();
+    await refresh();
+    paint('Duplicated quotation '+String(row.number).padStart(6,'0')+' as a new draft. Save to create it.');
+  }
+  async function deleteQuote(id){
+    const row=quoteRecords.find(r=>r.id===id);
+    if(!row)return;
+    if(!confirm('Delete quotation '+String(row.number).padStart(6,'0')+' · '+row.client+'? This cannot be undone.'))return;
+    try{
+      await WahajDB.api('/rest/v1/quotations?id=eq.'+id,{method:'DELETE'});
+      if(currentQuote&&currentQuote.id===id){currentQuote=null;markQuoteEditing();}
+      quoteRecords=quoteRecords.filter(r=>r.id!==id);
+      paintQuoteList();
+      $('quoteRevisions').hidden=true;$('quoteRevisions').innerHTML='';
+      paint('Deleted quotation '+String(row.number).padStart(6,'0')+'.');
+    }catch(e){paint(e.message,true);}
   }
   async function showQuoteRevisions(id){
     try{
@@ -453,14 +483,19 @@ function boot(){
       $('quoteRevisions').innerHTML='<h2 style="font-size:14px;margin:8px 0">Revision history</h2>'+(rs.length?rs.map((r,n)=>`<details><summary>Revision ${rs.length-n} · ${esc(new Date(r.recorded_at).toLocaleString())}</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(r.data.data,null,2))}</pre></details>`).join(''):'<p>No revisions yet.</p>');
     }catch(e){paint(e.message,true);}
   }
+  markQuoteEditing();
   $('saveQuote').onclick=()=>saveQuote();
   $('historyBtn').onclick=()=>openSavedQuotes();
   $('quoteSearch').oninput=()=>paintQuoteList();
   $('quoteRecords').onclick=e=>{
     const open=e.target.closest('[data-open]');
+    const dup=e.target.closest('[data-dup]');
     const revs=e.target.closest('[data-revs]');
+    const del=e.target.closest('[data-del]');
     if(open)openQuote(open.dataset.open);
+    if(dup)duplicateQuote(dup.dataset.dup);
     if(revs)showQuoteRevisions(revs.dataset.revs);
+    if(del)deleteQuote(del.dataset.del);
   };
   $('removeLogo').onclick=()=>{clearLogo();refresh();};
   $('logo').onchange=async()=>{
@@ -478,7 +513,7 @@ function boot(){
   };
   $('reset').onclick=()=>{
     if(!confirm('Reset all quotation fields to the original sections?'))return;
-    clearTimeout(timer);revision++;currentQuote=null;quote=defaultQuote();fillClient();renderSections();clearLogo();refresh();
+    clearTimeout(timer);revision++;currentQuote=null;markQuoteEditing();quote=defaultQuote();fillClient();renderSections();clearLogo();refresh();
   };
   Promise.all(['font-5.ttf','font-11.ttf','font-18.ttf','fallback-regular.ttf','fallback-bold.ttf','fallback-italic.ttf'].map(p=>fetch(p).then(r=>{if(!r.ok)throw Error('Quotation fonts could not be loaded. Reload this page.');return r.arrayBuffer();}))).then(async a=>{
     assets=a;

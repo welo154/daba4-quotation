@@ -41,19 +41,25 @@ alter table public.invoice_history enable row level security;
 drop policy if exists anon_select on public.invoices;
 drop policy if exists anon_insert on public.invoices;
 drop policy if exists anon_update on public.invoices;
+drop policy if exists anon_delete on public.invoices;
 drop policy if exists anon_history_select on public.invoice_history;
 drop policy if exists anon_history_insert on public.invoice_history;
+drop policy if exists anon_history_delete on public.invoice_history;
 
 create policy anon_select on public.invoices for select to anon using (true);
 create policy anon_insert on public.invoices for insert to anon with check (true);
 create policy anon_update on public.invoices for update to anon using (true) with check (true);
+create policy anon_delete on public.invoices for delete to anon using (true);
 create policy anon_history_select on public.invoice_history for select to anon using (true);
 create policy anon_history_insert on public.invoice_history for insert to anon with check (true);
+create policy anon_history_delete on public.invoice_history for delete to anon using (true);
 
 revoke all on public.invoices, public.invoice_history from anon, authenticated;
 grant select on public.invoices, public.invoice_history to anon;
 grant insert (invoice_date, client, data) on public.invoices to anon;
 grant update (invoice_date, client, data) on public.invoices to anon;
+grant delete on public.invoices to anon;
+grant delete on public.invoice_history to anon;
 grant usage on sequence public.invoice_number_seq to anon;
 
 create or replace function public.invoice_timestamp() returns trigger language plpgsql as $$
@@ -102,19 +108,25 @@ alter table public.quotation_history enable row level security;
 drop policy if exists anon_select on public.quotations;
 drop policy if exists anon_insert on public.quotations;
 drop policy if exists anon_update on public.quotations;
+drop policy if exists anon_delete on public.quotations;
 drop policy if exists anon_history_select on public.quotation_history;
 drop policy if exists anon_history_insert on public.quotation_history;
+drop policy if exists anon_history_delete on public.quotation_history;
 
 create policy anon_select on public.quotations for select to anon using (true);
 create policy anon_insert on public.quotations for insert to anon with check (true);
 create policy anon_update on public.quotations for update to anon using (true) with check (true);
+create policy anon_delete on public.quotations for delete to anon using (true);
 create policy anon_history_select on public.quotation_history for select to anon using (true);
 create policy anon_history_insert on public.quotation_history for insert to anon with check (true);
+create policy anon_history_delete on public.quotation_history for delete to anon using (true);
 
 revoke all on public.quotations, public.quotation_history from anon, authenticated;
 grant select on public.quotations, public.quotation_history to anon;
 grant insert (client, data) on public.quotations to anon;
 grant update (client, data) on public.quotations to anon;
+grant delete on public.quotations to anon;
+grant delete on public.quotation_history to anon;
 grant usage on sequence public.quotation_number_seq to anon;
 
 create or replace function public.quotation_timestamp() returns trigger language plpgsql as $$

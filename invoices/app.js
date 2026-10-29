@@ -1,146 +1,25 @@
 const $=id=>document.getElementById(id), fields=['date','currency','client','clientInfo','sender','senderInfo','paymentMode','deposit','payment','note'];
 let items=[],logo='',current=null,records=[];
-const STORE='wahaj-invoices-v1';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), money=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:2,minimumFractionDigits:2});
-const uid=()=>crypto.randomUUID?crypto.randomUUID():'id-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
-
-function loadStore(){
-  try{
-    const raw=localStorage.getItem(STORE);
-    if(!raw)return {nextNumber:1,invoices:[],history:[]};
-    const data=JSON.parse(raw);
-    return {
-      nextNumber:Math.max(1,Number(data.nextNumber)||1),
-      invoices:Array.isArray(data.invoices)?data.invoices:[],
-      history:Array.isArray(data.history)?data.history:[]
-    };
-  }catch(e){
-    return {nextNumber:1,invoices:[],history:[]};
-  }
-}
-function saveStore(data){
-  localStorage.setItem(STORE,JSON.stringify(data));
-}
-
 function notify(s){$('notice').textContent=s}
 function view(id){['editor','history'].forEach(x=>$(x).hidden=x!==id)}
 function values(){return Object.fromEntries(fields.map(f=>[f,$(f).value]))}
-
-function fresh(){
-  current=null;logo='';
-  items=[{description:'the Wood Court Le Marché event coverage - photos and 3 videos',quantity:1,price:15000}];
-  let d={date:new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Cairo'}),currency:'EGP',client:'Blueberry studio',clientInfo:'saadany@blueberry-studio.com',sender:'Abdelrahman sherif',senderInfo:'+201027505410\nAbdelrahman.sh.magdy@gmail.com',paymentMode:'deposit',deposit:7500,payment:'Instapay : 01027505410',note:'Thank you'};
-  fields.forEach(f=>$(f).value=d[f]);itemForm();render();view('editor');
-}
-
-function itemForm(){
-  $('items').innerHTML=items.map((i,n)=>'<div class="item"><label>Description<textarea data-i="'+n+'" data-k="description">'+esc(i.description)+'</textarea></label><div><label>Quantity<input type="number" min=".01" step=".01" data-i="'+n+'" data-k="quantity" value="'+i.quantity+'"></label><label>Price<input type="number" min="0" step=".01" data-i="'+n+'" data-k="price" value="'+i.price+'"></label></div><button onclick="items.splice('+n+',1);itemForm();render()">Remove</button></div>').join('');
-  $('items').querySelectorAll('input,textarea').forEach(e=>e.oninput=()=>{items[+e.dataset.i][e.dataset.k]=e.dataset.k==='description'?e.value:Number(e.value);render()});
-}
-
-function totalsHtml(d,total){
-  if(d.paymentMode==='deposit')return 'Total Amount : '+money(total)+' '+esc(d.currency)+'<br><span class="balance">deposit : '+money(d.deposit)+'</span><br>The rest will be invoiced after post production';
-  return 'Total Amount : '+money(total)+' '+esc(d.currency)+'<br>less paid deposit : -'+money(d.deposit)+'<br><span class="balance">balance due : '+money(total-Number(d.deposit))+'</span>';
-}
-
-function render(){
-  let d=values(),total=items.reduce((s,i)=>s+i.quantity*i.price,0),num=current?String(current.number).padStart(6,'0'):'DRAFT';
-  $('paper').innerHTML='<div class="paper-top"><div>NO. '+num+'<br>Date: '+esc(new Date(d.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}))+'</div>'+(logo?'<img class="logo" src="'+logo+'">':'')+'</div><div class="invoice-title">INVOICE</div><div class="parties"><div><b>Billed to:</b><br>'+esc(d.client)+'<br>'+esc(d.clientInfo).replace(/\n/g,'<br>')+'</div><div><b>From:</b><br>'+esc(d.sender)+'<br>'+esc(d.senderInfo).replace(/\n/g,'<br>')+'</div></div><table><thead><tr><th>Item</th><th>Quantity</th><th>Price</th><th>Amount</th></tr></thead><tbody>'+items.map(i=>'<tr><td>'+esc(i.description)+'</td><td>'+i.quantity+'</td><td>'+money(i.price)+'</td><td>'+money(i.quantity*i.price)+'</td></tr>').join('')+'</tbody></table><div class="totals">'+totalsHtml(d,total)+'</div><div class="payment"><b>Payment method:</b> '+esc(d.payment)+'<br><b>Note:</b> '+esc(d.note).replace(/\n/g,'<br>')+'</div><svg class="waves" viewBox="0 0 800 180" preserveAspectRatio="none"><path fill="#f0f0f1" d="M0 75 Q230 110 440 35 T800 15 V180 H0Z"/><path fill="#d1d0d2" d="M0 80 Q210 120 405 75 T800 70 V180 H0Z"/><path fill="#aaa9ad" d="M0 95 Q210 155 430 105 T800 90 V180 H0Z"/><path fill="#1b2c38" d="M0 130 Q200 170 450 110 T800 95 V180 H0Z"/></svg>';
-}
-
-function upload(e){
-  let f=e.files[0];if(!f)return;
-  if(f.size>1500000){notify('Choose a logo smaller than 1.5 MB.');return}
-  let r=new FileReader();r.onload=()=>{logo=r.result;render()};r.readAsDataURL(f);
-}
-
-function download(){
-  view('editor');
-  document.title=current?'Invoice-'+String(current.number).padStart(6,'0'):'Invoice-Draft';
-  notify('Choose Save as PDF in the print dialog. A4 layout is prepared automatically.');
-  window.print();
-}
-
-function save(){
-  let d=values(),total=items.reduce((s,i)=>s+i.quantity*i.price,0);
-  if(!d.client.trim()||!d.date||!items.length||items.some(i=>!i.description.trim()||!Number.isFinite(i.quantity)||i.quantity<=0||!Number.isFinite(i.price)||i.price<0)||Number(d.deposit)<0||Number(d.deposit)>total){
-    notify('Enter a client, date, valid line items, and a deposit between zero and the total.');
-    return;
-  }
-  $('save').disabled=true;
-  try{
-    const store=loadStore();
-    const payload={...d,items:structuredClone(items),logo};
-    const now=new Date().toISOString();
-    if(current){
-      const idx=store.invoices.findIndex(r=>r.id===current.id);
-      if(idx<0)throw Error('That invoice was not found in this browser. Start a new invoice.');
-      store.invoices[idx]={...store.invoices[idx],invoice_date:d.date,client:d.client,data:payload,updated_at:now};
-      current=store.invoices[idx];
-    }else{
-      current={
-        id:uid(),
-        number:store.nextNumber++,
-        invoice_date:d.date,
-        client:d.client,
-        data:payload,
-        created_at:now,
-        updated_at:now
-      };
-      store.invoices.push(current);
-    }
-    store.history.push({
-      id:uid(),
-      invoice_id:current.id,
-      recorded_at:now,
-      data:{data:payload,number:current.number,client:current.client,invoice_date:current.invoice_date}
-    });
-    saveStore(store);
-    render();
-    notify('Saved invoice '+String(current.number).padStart(6,'0')+' in this browser. A dated revision was added to history.');
-  }catch(e){
-    notify(e.message||'Could not save this invoice in the browser.');
-  }finally{
-    $('save').disabled=false;
-  }
-}
-
-function list(){
-  try{
-    records=loadStore().invoices.slice().sort((a,b)=>b.number-a.number);
-    paintList();
-  }catch(e){
-    $('records').textContent=e.message;
-  }
-}
-
-function paintList(){
-  let q=$('search').value.toLowerCase();
-  $('records').innerHTML=records.filter(r=>(r.client+' '+String(r.number).padStart(6,'0')).toLowerCase().includes(q)).map(r=>'<div class="record"><div><b>'+String(r.number).padStart(6,'0')+' · '+esc(r.client)+'</b><p>'+esc(r.invoice_date)+' · '+money(r.data.items.reduce((s,i)=>s+i.quantity*i.price,0))+' '+esc(r.data.currency)+'</p></div><div><button onclick="openInvoice(\''+r.id+'\')">Open</button><button onclick="revisions(\''+r.id+'\')">Revisions</button></div></div>').join('')||'<p>No invoices found.</p>';
-}
-
-function openInvoice(id){
-  current=records.find(r=>r.id===id)||loadStore().invoices.find(r=>r.id===id);
-  if(!current){notify('Invoice not found in this browser.');return}
-  let d=current.data;
-  fields.forEach(f=>$(f).value=d[f]??(f==='paymentMode'?'deposit':''));
-  items=structuredClone(d.items||[]);
-  logo=d.logo||'';
-  itemForm();render();view('editor');
-  notify('Editing invoice '+String(current.number).padStart(6,'0')+'. Save to record a new revision.');
-}
-
-function revisions(id){
-  try{
-    const rs=loadStore().history.filter(h=>h.invoice_id===id).sort((a,b)=>String(b.recorded_at).localeCompare(String(a.recorded_at)));
-    $('revisions').hidden=false;
-    $('revisions').innerHTML='<h2>Revision history</h2>'+(rs.length?rs.map((r,n)=>'<details><summary>Revision '+(rs.length-n)+' · '+esc(new Date(r.recorded_at).toLocaleString())+'</summary><pre>'+esc(JSON.stringify(r.data.data,null,2))+'</pre></details>').join(''):'<p>No revisions yet.</p>');
-  }catch(e){notify(e.message)}
-}
-
-fields.forEach(f=>$(f).addEventListener('input',render));
-$('paymentMode').addEventListener('change',render);
-$('connection').textContent='● Saved in this browser';
-notify('Edit, preview, save, and download. Invoices stay in this browser — no sign-in and no cloud database.');
-fresh();
-{let q=new URLSearchParams(location.search);if(q.get('client')){$('client').value=q.get('client');$('clientInfo').value='';render();notify('New invoice for '+q.get('client')+' from the quotation studio. Add line items, then save.')}}
+function fresh(){current=null;logo='';items=[{description:'the Wood Court Le Marché event coverage - photos and 3 videos',quantity:1,price:15000}];let d={date:new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Cairo'}),currency:'EGP',client:'Blueberry studio',clientInfo:'saadany@blueberry-studio.com',sender:'Abdelrahman sherif',senderInfo:'+201027505410\nAbdelrahman.sh.magdy@gmail.com',paymentMode:'deposit',deposit:7500,payment:'Instapay : 01027505410',note:'Thank you'};fields.forEach(f=>$(f).value=d[f]);itemForm();render();view('editor')}
+function itemForm(){$('items').innerHTML=items.map((i,n)=>'<div class="item"><label>Description<textarea data-i="'+n+'" data-k="description">'+esc(i.description)+'</textarea></label><div><label>Quantity<input type="number" min=".01" step=".01" data-i="'+n+'" data-k="quantity" value="'+i.quantity+'"></label><label>Price<input type="number" min="0" step=".01" data-i="'+n+'" data-k="price" value="'+i.price+'"></label></div><button onclick="items.splice('+n+',1);itemForm();render()">Remove</button></div>').join('');$('items').querySelectorAll('input,textarea').forEach(e=>e.oninput=()=>{items[+e.dataset.i][e.dataset.k]=e.dataset.k==='description'?e.value:Number(e.value);render()})}
+function totalsHtml(d,total){if(d.paymentMode==='deposit')return 'Total Amount : '+money(total)+' '+esc(d.currency)+'<br><span class="balance">deposit : '+money(d.deposit)+'</span><br>The rest will be invoiced after post production';return 'Total Amount : '+money(total)+' '+esc(d.currency)+'<br>less paid deposit : -'+money(d.deposit)+'<br><span class="balance">balance due : '+money(total-Number(d.deposit))+'</span>'}
+function render(){let d=values(),total=items.reduce((s,i)=>s+i.quantity*i.price,0),num=current?String(current.number).padStart(6,'0'):'DRAFT';$('paper').innerHTML='<div class="paper-top"><div>NO. '+num+'<br>Date: '+esc(new Date(d.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}))+'</div>'+(logo?'<img class="logo" src="'+logo+'">':'')+'</div><div class="invoice-title">INVOICE</div><div class="parties"><div><b>Billed to:</b><br>'+esc(d.client)+'<br>'+esc(d.clientInfo).replace(/\n/g,'<br>')+'</div><div><b>From:</b><br>'+esc(d.sender)+'<br>'+esc(d.senderInfo).replace(/\n/g,'<br>')+'</div></div><table><thead><tr><th>Item</th><th>Quantity</th><th>Price</th><th>Amount</th></tr></thead><tbody>'+items.map(i=>'<tr><td>'+esc(i.description)+'</td><td>'+i.quantity+'</td><td>'+money(i.price)+'</td><td>'+money(i.quantity*i.price)+'</td></tr>').join('')+'</tbody></table><div class="totals">'+totalsHtml(d,total)+'</div><div class="payment"><b>Payment method:</b> '+esc(d.payment)+'<br><b>Note:</b> '+esc(d.note).replace(/\n/g,'<br>')+'</div><svg class="waves" viewBox="0 0 800 180" preserveAspectRatio="none"><path fill="#f0f0f1" d="M0 75 Q230 110 440 35 T800 15 V180 H0Z"/><path fill="#d1d0d2" d="M0 80 Q210 120 405 75 T800 70 V180 H0Z"/><path fill="#aaa9ad" d="M0 95 Q210 155 430 105 T800 90 V180 H0Z"/><path fill="#1b2c38" d="M0 130 Q200 170 450 110 T800 95 V180 H0Z"/></svg>'}
+function upload(e){let f=e.files[0];if(!f)return;if(f.size>1500000){notify('Choose a logo smaller than 1.5 MB.');return}let r=new FileReader();r.onload=()=>{logo=r.result;render()};r.readAsDataURL(f)}
+function download(){view('editor');document.title=current?'Invoice-'+String(current.number).padStart(6,'0'):'Invoice-Draft';notify('Choose Save as PDF in the print dialog. A4 layout is prepared automatically.');window.print()}
+async function save(){let d=values(),total=items.reduce((s,i)=>s+i.quantity*i.price,0);if(!d.client.trim()||!d.date||!items.length||items.some(i=>!i.description.trim()||!Number.isFinite(i.quantity)||i.quantity<=0||!Number.isFinite(i.price)||i.price<0)||Number(d.deposit)<0||Number(d.deposit)>total){notify('Enter a client, date, valid line items, and a deposit between zero and the total.');return}$('save').disabled=true;try{let row={invoice_date:d.date,client:d.client,data:{...d,items,logo}},path='/rest/v1/invoices'+(current?'?id=eq.'+current.id:'');let r=await WahajDB.api(path,{method:current?'PATCH':'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(row)});if(!r?.[0])throw Error('Invoice was not saved. Run supabase/schema.sql in the Supabase SQL Editor first.');current=r[0];render();notify('Saved invoice '+String(current.number).padStart(6,'0')+'. A dated revision was added to history.')}catch(e){notify(e.message)}finally{$('save').disabled=false}}
+async function list(){try{records=await WahajDB.api('/rest/v1/invoices?select=*&order=number.desc');paintList()}catch(e){$('records').textContent=e.message}}
+function paintList(){let q=$('search').value.toLowerCase();$('records').innerHTML=records.filter(r=>(r.client+' '+String(r.number).padStart(6,'0')).toLowerCase().includes(q)).map(r=>'<div class="record"><div><b>'+String(r.number).padStart(6,'0')+' · '+esc(r.client)+'</b><p>'+esc(r.invoice_date)+' · '+money(r.data.items.reduce((s,i)=>s+i.quantity*i.price,0))+' '+esc(r.data.currency)+'</p></div><div><button onclick="openInvoice(\''+r.id+'\')">Open</button><button onclick="revisions(\''+r.id+'\')">Revisions</button></div></div>').join('')||'<p>No invoices found.</p>'}
+function openInvoice(id){current=records.find(r=>r.id===id);let d=current.data;fields.forEach(f=>$(f).value=d[f]??(f==='paymentMode'?'deposit':''));items=structuredClone(d.items);logo=d.logo||'';itemForm();render();view('editor');notify('Editing invoice '+String(current.number).padStart(6,'0')+'. Save to record a new revision.')}
+async function revisions(id){try{let rs=await WahajDB.api('/rest/v1/invoice_history?invoice_id=eq.'+id+'&order=recorded_at.desc');$('revisions').hidden=false;$('revisions').innerHTML='<h2>Revision history</h2>'+(rs.length?rs.map((r,n)=>'<details><summary>Revision '+(rs.length-n)+' · '+esc(new Date(r.recorded_at).toLocaleString())+'</summary><pre>'+esc(JSON.stringify(r.data.data,null,2))+'</pre></details>').join(''):'<p>No revisions yet.</p>')}catch(e){notify(e.message)}}
+fields.forEach(f=>$(f).addEventListener('input',render));$('paymentMode').addEventListener('change',render);
+(async()=>{
+  const status=await WahajDB.ping();
+  $('connection').textContent=status.ok?'● Connected to Supabase':'○ '+status.message;
+  notify(status.ok?'Edit, preview, save, and download. Quotations and invoices share one Supabase project.':'Supabase is not ready yet: '+status.message);
+  fresh();
+  let q=new URLSearchParams(location.search);if(q.get('client')){$('client').value=q.get('client');$('clientInfo').value='';render();notify('New invoice for '+q.get('client')+' from the quotation studio. Add line items, then save.')}
+})();

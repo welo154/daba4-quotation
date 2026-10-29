@@ -5,9 +5,9 @@ One static site with two tools. Both can be saved and reopened:
 - /invoices/  Invoice Studio — Save invoice + history + A4 PDF print
 
 How saving works
-- By default, both quotations and invoices are saved in this browser (localStorage).
-- Optional: put a Supabase Project URL + anon key in config.js, run supabase/schema.sql
-  once in the SQL Editor, and saves go to that shared cloud project (with local fallback).
+- config.js points at the shared Supabase project.
+- Run supabase/schema.sql once (see /setup.html), then quotations and invoices save to Supabase.
+- If Supabase tables are missing or unreachable, the app falls back to this browser.
 
 Shared files
 - config.js              Optional Supabase URL + anon key

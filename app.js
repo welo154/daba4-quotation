@@ -414,9 +414,10 @@ function boot(){
       const row=payloadFromForm();
       const path='/rest/v1/quotations'+(currentQuote?'?id=eq.'+currentQuote.id:'');
       const r=await WahajDB.api(path,{method:currentQuote?'PATCH':'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(row)});
-      if(!r?.[0])throw Error('Quotation was not saved. Run supabase/schema.sql in the Supabase SQL Editor first.');
+      if(!r?.[0])throw Error('Quotation was not saved.');
       currentQuote=r[0];
-      paint('Saved quotation '+String(currentQuote.number).padStart(6,'0')+' to Supabase.');
+      clearTimeout(timer);
+      paint('Saved quotation '+String(currentQuote.number).padStart(6,'0')+'. Open it anytime from Saved.');
     }catch(e){paint(e.message,true);}
     finally{$('saveQuote').disabled=false;}
   }
@@ -481,9 +482,9 @@ function boot(){
   };
   Promise.all(['font-5.ttf','font-11.ttf','font-18.ttf','fallback-regular.ttf','fallback-bold.ttf','fallback-italic.ttf'].map(p=>fetch(p).then(r=>{if(!r.ok)throw Error('Quotation fonts could not be loaded. Reload this page.');return r.arrayBuffer();}))).then(async a=>{
     assets=a;
+    await refresh();
     const status=await WahajDB.ping();
-    if(!status.ok)paint('Supabase not ready yet: '+status.message,true);
-    return refresh();
+    if(status.mode==='local')paint('PDF ready · saves stay in this browser until Supabase keys are added');
   }).catch(e=>paint(e.message,true));
   if(document.modelContext?.registerTool){
     Promise.resolve(document.modelContext.registerTool({name:'set_quotation_client',description:'Set the client name on the current quotation and regenerate its PDF preview.',inputSchema:{type:'object',properties:{client:{type:'string',minLength:1,maxLength:100}},required:['client'],additionalProperties:false},annotations:{readOnlyHint:false},execute:async input=>{if(typeof input.client!=='string'||!input.client.trim()||input.client.length>100)throw Error('Client must be a nonempty name of up to 100 characters.');$('client').value=input.client;await refresh();return {client:$('client').value,pdfReady:!!latest};}})).catch(()=>{});

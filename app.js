@@ -423,16 +423,40 @@ function boot(){
     }catch(e){paint(e.message,true);}
     finally{$('saveQuote').disabled=false;}
   }
+  let selectedQuoteId=null;
+  function showView(which){
+    const archive=which==='archive';
+    $('studio').hidden=archive;
+    $('archive').hidden=!archive;
+    $('studioActions').hidden=archive;
+    $('archiveActions').hidden=!archive;
+  }
+  function sectionSummary(data){
+    const sections=Array.isArray(data?.sections)?data.sections:[];
+    const included=sections.filter(s=>s.included!==false).length;
+    return included+' section'+(included===1?'':'s');
+  }
   function paintQuoteList(){
     const q=($('quoteSearch').value||'').toLowerCase();
-    $('quoteRecords').innerHTML=quoteRecords.filter(r=>(r.client+' '+String(r.number).padStart(6,'0')).toLowerCase().includes(q)).map(r=>`<div class="record"><div><b>${String(r.number).padStart(6,'0')} · ${esc(r.client)}</b><p>${esc(new Date(r.updated_at||r.created_at).toLocaleString())}</p></div><div class="actions"><button type="button" data-open="${esc(r.id)}">Open</button><button type="button" data-dup="${esc(r.id)}">Duplicate</button><button type="button" data-revs="${esc(r.id)}">Revisions</button><button type="button" data-del="${esc(r.id)}">Delete</button></div></div>`).join('')||'<p>No quotations found.</p>';
+    const filtered=quoteRecords.filter(r=>(r.client+' '+String(r.number).padStart(6,'0')).toLowerCase().includes(q));
+    $('archiveCount').textContent=filtered.length+' of '+quoteRecords.length+' shown';
+    if(!filtered.length){
+      $('quoteRecords').innerHTML='<div class="archive-empty"><b>No quotations found</b>Save a quotation from the editor, or clear your search.</div>';
+      return;
+    }
+    $('quoteRecords').innerHTML=filtered.map(r=>{
+      const active=r.id===selectedQuoteId?' active':'';
+      return `<div class="q-row${active}" data-select="${esc(r.id)}"><div class="meta"><b>${String(r.number).padStart(6,'0')} · ${esc(r.client)}</b><span>${esc(new Date(r.updated_at||r.created_at).toLocaleString())} · ${esc(sectionSummary(r.data))}</span></div><div class="btns"><button type="button" data-open="${esc(r.id)}">Open</button><button type="button" data-dup="${esc(r.id)}">Duplicate</button><button type="button" data-del="${esc(r.id)}">Delete</button></div></div>`;
+    }).join('');
   }
   async function openSavedQuotes(){
-    $('quoteRevisions').hidden=true;$('quoteRevisions').innerHTML='';
     try{
       quoteRecords=await WahajDB.api('/rest/v1/quotations?select=*&order=number.desc');
+      selectedQuoteId=quoteRecords[0]?.id||null;
       paintQuoteList();
-      $('historyDlg').showModal();
+      if(selectedQuoteId)await showQuoteRevisions(selectedQuoteId);
+      else $('quoteRevisions').innerHTML='<p class="empty">No saved quotations yet.</p>';
+      showView('archive');
     }catch(e){paint(e.message,true);}
   }
   async function openQuote(id){
@@ -445,7 +469,7 @@ function boot(){
     renderSections();
     await applyLogoDataUrl(row.data.logo||'');
     markQuoteEditing();
-    $('historyDlg').close();
+    showView('studio');
     await refresh();
     paint('Editing quotation '+String(row.number).padStart(6,'0')+'. Update quotation to save changes.');
   }
@@ -459,7 +483,7 @@ function boot(){
     renderSections();
     await applyLogoDataUrl(row.data.logo||'');
     markQuoteEditing();
-    $('historyDlg').close();
+    showView('studio');
     await refresh();
     paint('Duplicated quotation '+String(row.number).padStart(6,'0')+' as a new draft. Save to create it.');
   }
@@ -471,31 +495,40 @@ function boot(){
       await WahajDB.api('/rest/v1/quotations?id=eq.'+id,{method:'DELETE'});
       if(currentQuote&&currentQuote.id===id){currentQuote=null;markQuoteEditing();}
       quoteRecords=quoteRecords.filter(r=>r.id!==id);
+      if(selectedQuoteId===id)selectedQuoteId=quoteRecords[0]?.id||null;
       paintQuoteList();
-      $('quoteRevisions').hidden=true;$('quoteRevisions').innerHTML='';
+      if(selectedQuoteId)await showQuoteRevisions(selectedQuoteId);
+      else $('quoteRevisions').innerHTML='<p class="empty">No saved quotations yet.</p>';
       paint('Deleted quotation '+String(row.number).padStart(6,'0')+'.');
     }catch(e){paint(e.message,true);}
   }
   async function showQuoteRevisions(id){
+    selectedQuoteId=id;
+    paintQuoteList();
     try{
       const rs=await WahajDB.api('/rest/v1/quotation_history?quotation_id=eq.'+id+'&order=recorded_at.desc');
-      $('quoteRevisions').hidden=false;
-      $('quoteRevisions').innerHTML='<h2 style="font-size:14px;margin:8px 0">Revision history</h2>'+(rs.length?rs.map((r,n)=>`<details><summary>Revision ${rs.length-n} · ${esc(new Date(r.recorded_at).toLocaleString())}</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(r.data.data,null,2))}</pre></details>`).join(''):'<p>No revisions yet.</p>');
+      const row=quoteRecords.find(r=>r.id===id);
+      const title=row?`${String(row.number).padStart(6,'0')} · ${esc(row.client)}`:'Quotation';
+      $('quoteRevisions').innerHTML=`<p class="empty" style="margin-top:0">${title}</p>`+(rs.length?rs.map((r,n)=>`<details><summary>Revision ${rs.length-n} · ${esc(new Date(r.recorded_at).toLocaleString())}</summary><pre>${esc(JSON.stringify(r.data.data,null,2))}</pre></details>`).join(''):'<p class="empty">No revisions yet.</p>');
     }catch(e){paint(e.message,true);}
   }
   markQuoteEditing();
   $('saveQuote').onclick=()=>saveQuote();
   $('historyBtn').onclick=()=>openSavedQuotes();
+  $('backToStudio').onclick=()=>showView('studio');
+  $('newFromArchive').onclick=()=>{
+    currentQuote=null;markQuoteEditing();quote=defaultQuote();fillClient();renderSections();clearLogo();showView('studio');refresh();
+  };
   $('quoteSearch').oninput=()=>paintQuoteList();
   $('quoteRecords').onclick=e=>{
     const open=e.target.closest('[data-open]');
     const dup=e.target.closest('[data-dup]');
-    const revs=e.target.closest('[data-revs]');
     const del=e.target.closest('[data-del]');
-    if(open)openQuote(open.dataset.open);
-    if(dup)duplicateQuote(dup.dataset.dup);
-    if(revs)showQuoteRevisions(revs.dataset.revs);
-    if(del)deleteQuote(del.dataset.del);
+    const select=e.target.closest('[data-select]');
+    if(open){openQuote(open.dataset.open);return;}
+    if(dup){duplicateQuote(dup.dataset.dup);return;}
+    if(del){deleteQuote(del.dataset.del);return;}
+    if(select)showQuoteRevisions(select.dataset.select);
   };
   $('removeLogo').onclick=()=>{clearLogo();refresh();};
   $('logo').onchange=async()=>{

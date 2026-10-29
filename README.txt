@@ -1,28 +1,27 @@
 Wahaj Studio: Quotations + Invoices
 
-One static site with two tools:
-- /           Quotation Studio: editable media-production quotations that download as PDF.
-- /invoices/  Invoice Studio: invoices with live A4 preview, saved to Supabase with revision history.
+One static site with two tools. Both can be saved and reopened:
+- /           Quotation Studio — Save quotation + Saved history + PDF
+- /invoices/  Invoice Studio — Save invoice + history + A4 PDF print
 
-Use the Quotations / Invoices switcher in the quotation header, or "Quotation studio" in the invoice sidebar,
-to move between them. "Create invoice" on the quotation page opens a new invoice for the same client.
+How saving works
+- By default, both quotations and invoices are saved in this browser (localStorage).
+- Optional: put a Supabase Project URL + anon key in config.js, run supabase/schema.sql
+  once in the SQL Editor, and saves go to that shared cloud project (with local fallback).
 
-No build step is required.
+Shared files
+- config.js              Optional Supabase URL + anon key
+- supabase-client.js     Shared save/load helper (local + Supabase)
+- supabase/schema.sql    Cloud schema for quotations + invoices
 
 Deploy on Vercel
-1. Import this repository into Vercel, or run `npx vercel` from this folder.
-2. Choose the Other framework preset. Leave the build command empty and use the project root as the output directory.
-
-Invoice storage
-Invoices are saved in this browser with localStorage (no Supabase / cloud database).
-Saved invoices and revisions stay on the same device and browser. Clearing site data removes them.
-invoices/schema.sql is kept only as an optional reference if you later want a cloud backend.
+Import this repository (Other framework, empty build command, root output directory)
+or run `npx vercel` from this folder.
 
 Local preview
-Run `python3 -m http.server 8000` in this folder, then open http://localhost:8000.
-Use a local server rather than double-clicking index.html, because the app fetches its PDF and font assets.
+Run `python3 -m http.server 8000`, then open http://localhost:8000.
 
 Usage
-Quotations: edit the quotation, optionally upload a PNG/JPG logo, and click Download PDF.
-Quotation edits are held in the current page only and are not saved after reload.
-Invoices: edit, Save invoice to store it in this browser (and record a revision), and ↓ PDF to print as A4.
+Quotations: edit, Save quotation, open Saved, Download PDF.
+Invoices: edit, Save invoice, Invoice history, ↓ PDF.
+Create invoice on the quotation page opens a new invoice for the same client.
